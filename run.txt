@@ -1,0 +1,4 @@
+npm run auth      # one-time LinkedIn OAuth (repeat every ~60 days)
+
+npm run dry-run   # research + draft + approval, no publishing
+npm run run       # full pipeline, posts to your profile
