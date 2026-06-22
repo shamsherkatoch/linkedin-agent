@@ -4,17 +4,37 @@ import { draftPost } from './generate/index.ts';
 import { promptTopic, requestApproval } from './approval/index.ts';
 import { publishPost } from './publish/index.ts';
 import { appendHistory } from './history.ts';
+import type { NewsItem } from './types.ts';
 
 const dryRun = process.argv.includes('--dry-run');
+const MAX_TOPIC_ATTEMPTS = 5;
+
+async function findArticleWithRetries(initialTopic: string): Promise<{ topic: string; item: NewsItem } | null> {
+  let topic = initialTopic;
+  for (let attempt = 1; attempt <= MAX_TOPIC_ATTEMPTS; attempt++) {
+    console.log(`[1/4] Researching (attempt ${attempt}/${MAX_TOPIC_ATTEMPTS}): ${topic}`);
+    const item = await fetchLatestNews(topic);
+    if (item) return { topic, item };
+
+    if (attempt === MAX_TOPIC_ATTEMPTS) break;
+
+    const retryPrompt =
+      `No usable article found for "${topic}".\n\n` +
+      `Reply with a different topic to try, or "default" to use:\n${config.TOPIC}\n\n` +
+      `(Times out in 2 min → uses default. Attempt ${attempt + 1}/${MAX_TOPIC_ATTEMPTS}.)`;
+    topic = await promptTopic(config.TOPIC, retryPrompt);
+  }
+  return null;
+}
 
 async function main(): Promise<void> {
-  const topic = await promptTopic(config.TOPIC);
-  console.log(`[1/4] Researching: ${topic}`);
-  const item = await fetchLatestNews(topic);
-  if (!item) {
-    console.log('No usable article. Exiting without drafting.');
+  const initialTopic = await promptTopic(config.TOPIC);
+  const found = await findArticleWithRetries(initialTopic);
+  if (!found) {
+    console.log(`No usable article after ${MAX_TOPIC_ATTEMPTS} topic attempts. Exiting without drafting.`);
     return;
   }
+  const { topic, item } = found;
   console.log(`      Selected: ${item.title}`);
   console.log(`      ${item.url}`);
 

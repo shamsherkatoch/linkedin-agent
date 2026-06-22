@@ -50,17 +50,17 @@ interface TgUpdate {
   };
 }
 
-export async function promptTopic(defaultTopic: string): Promise<string> {
+export async function promptTopic(defaultTopic: string, prompt?: string): Promise<string> {
   if (!config.TELEGRAM_BOT_TOKEN || !config.TELEGRAM_CHAT_ID) {
     return defaultTopic;
   }
   const token = config.TELEGRAM_BOT_TOKEN;
   const chatId = config.TELEGRAM_CHAT_ID;
 
-  await tg(token, 'sendMessage', {
-    chat_id: chatId,
-    text: `Topic for this run? Reply with text, or "default" to use:\n${defaultTopic}\n\n(Times out in 2 min → uses default.)`,
-  });
+  const text =
+    prompt ??
+    `Topic for this run? Reply with text, or "default" to use:\n${defaultTopic}\n\n(Times out in 2 min → uses default.)`;
+  await tg(token, 'sendMessage', { chat_id: chatId, text });
 
   const deadline = Date.now() + 2 * 60 * 1000;
   let offset = 0;
