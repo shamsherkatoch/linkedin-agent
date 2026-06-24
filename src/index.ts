@@ -4,65 +4,67 @@ import { draftPost } from './generate/index.ts';
 import { promptTopic, requestApproval } from './approval/index.ts';
 import { publishPost } from './publish/index.ts';
 import { appendHistory } from './history.ts';
-import type { NewsItem } from './types.ts';
 
 const dryRun = process.argv.includes('--dry-run');
 const MAX_TOPIC_ATTEMPTS = 5;
 
-async function findArticleWithRetries(initialTopic: string): Promise<{ topic: string; item: NewsItem } | null> {
-  let topic = initialTopic;
+async function main(): Promise<void> {
+  let topic = await promptTopic(config.TOPIC);
+
   for (let attempt = 1; attempt <= MAX_TOPIC_ATTEMPTS; attempt++) {
     console.log(`[1/4] Researching (attempt ${attempt}/${MAX_TOPIC_ATTEMPTS}): ${topic}`);
     const item = await fetchLatestNews(topic);
-    if (item) return { topic, item };
+    if (!item) {
+      if (attempt === MAX_TOPIC_ATTEMPTS) break;
+      topic = await promptTopic(
+        config.TOPIC,
+        `No usable article found for "${topic}".\n\n` +
+          `Reply with a different topic to try, or "default" to use:\n${config.TOPIC}\n\n` +
+          `(Times out in 2 min → uses default. Attempt ${attempt + 1}/${MAX_TOPIC_ATTEMPTS}.)`,
+      );
+      continue;
+    }
+    console.log(`      Selected: ${item.title}`);
+    console.log(`      ${item.url}`);
 
-    if (attempt === MAX_TOPIC_ATTEMPTS) break;
+    console.log('[2/4] Drafting post');
+    const draft = await draftPost(item);
 
-    const retryPrompt =
-      `No usable article found for "${topic}".\n\n` +
-      `Reply with a different topic to try, or "default" to use:\n${config.TOPIC}\n\n` +
-      `(Times out in 2 min → uses default. Attempt ${attempt + 1}/${MAX_TOPIC_ATTEMPTS}.)`;
-    topic = await promptTopic(config.TOPIC, retryPrompt);
-  }
-  return null;
-}
+    console.log('[3/4] Requesting approval');
+    const decision = await requestApproval(draft);
+    if (decision === 'reject') {
+      console.log('Draft rejected. Exiting without publishing.');
+      return;
+    }
+    if (decision === 'new-topic') {
+      if (attempt === MAX_TOPIC_ATTEMPTS) break;
+      topic = await promptTopic(
+        config.TOPIC,
+        `Draft not the right topic. Reply with a new topic, or "default" to use:\n${config.TOPIC}\n\n` +
+          `(Times out in 2 min → uses default. Attempt ${attempt + 1}/${MAX_TOPIC_ATTEMPTS}.)`,
+      );
+      continue;
+    }
 
-async function main(): Promise<void> {
-  const initialTopic = await promptTopic(config.TOPIC);
-  const found = await findArticleWithRetries(initialTopic);
-  if (!found) {
-    console.log(`No usable article after ${MAX_TOPIC_ATTEMPTS} topic attempts. Exiting without drafting.`);
+    if (dryRun) {
+      console.log('[4/4] Dry run — skipping publish.');
+      return;
+    }
+
+    console.log('[4/4] Publishing to LinkedIn');
+    const postUrn = await publishPost(draft);
+    console.log(`      Published: ${postUrn}`);
+
+    await appendHistory({
+      topic,
+      url: draft.sourceUrl,
+      date: new Date().toISOString(),
+      text: draft.text,
+    });
     return;
   }
-  const { topic, item } = found;
-  console.log(`      Selected: ${item.title}`);
-  console.log(`      ${item.url}`);
 
-  console.log('[2/4] Drafting post');
-  const draft = await draftPost(item);
-
-  console.log('[3/4] Requesting approval');
-  const approved = await requestApproval(draft);
-  if (!approved) {
-    console.log('Draft rejected. Exiting without publishing.');
-    return;
-  }
-
-  if (dryRun) {
-    console.log('[4/4] Dry run — skipping publish.');
-    return;
-  }
-
-  console.log('[4/4] Publishing to LinkedIn');
-  const postUrn = await publishPost(draft);
-  console.log(`      Published: ${postUrn}`);
-
-  await appendHistory({
-    topic,
-    url: draft.sourceUrl,
-    date: new Date().toISOString(),
-    text: draft.text,
-  });
+  console.log(`No approved draft after ${MAX_TOPIC_ATTEMPTS} topic attempts. Exiting without publishing.`);
 }
 
 main().catch((err: unknown) => {

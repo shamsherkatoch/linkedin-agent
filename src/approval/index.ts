@@ -2,19 +2,23 @@ import { createInterface } from 'node:readline/promises';
 import { config } from '../config.ts';
 import type { Draft } from '../types.ts';
 
-export async function requestApproval(draft: Draft): Promise<boolean> {
+export type ApprovalDecision = 'approve' | 'reject' | 'new-topic';
+
+export async function requestApproval(draft: Draft): Promise<ApprovalDecision> {
   if (config.TELEGRAM_BOT_TOKEN && config.TELEGRAM_CHAT_ID) {
     return approveViaTelegram(draft, config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID);
   }
   return approveViaCli(draft);
 }
 
-async function approveViaCli(draft: Draft): Promise<boolean> {
+async function approveViaCli(draft: Draft): Promise<ApprovalDecision> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
     console.log('\n--- DRAFT ---\n' + draft.text + '\n-------------');
-    const answer = (await rl.question('Approve and publish? [y/N] ')).trim().toLowerCase();
-    return answer === 'y' || answer === 'yes';
+    const answer = (await rl.question('Approve (y), reject (n), or new topic (t)? [y/N/t] ')).trim().toLowerCase();
+    if (answer === 'y' || answer === 'yes') return 'approve';
+    if (answer === 't' || answer === 'topic' || answer === 'new' || answer === 'new-topic') return 'new-topic';
+    return 'reject';
   } finally {
     rl.close();
   }
@@ -97,7 +101,7 @@ export async function promptTopic(defaultTopic: string, prompt?: string): Promis
   return defaultTopic;
 }
 
-async function approveViaTelegram(draft: Draft, token: string, chatId: string): Promise<boolean> {
+async function approveViaTelegram(draft: Draft, token: string, chatId: string): Promise<ApprovalDecision> {
   const sent = await tg<TgSendResponse>(token, 'sendMessage', {
     chat_id: chatId,
     text: `Draft post:\n\n${draft.text}`,
@@ -106,6 +110,7 @@ async function approveViaTelegram(draft: Draft, token: string, chatId: string): 
         [
           { text: 'Approve', callback_data: 'approve' },
           { text: 'Reject', callback_data: 'reject' },
+          { text: 'New topic', callback_data: 'new-topic' },
         ],
       ],
     },
@@ -125,7 +130,9 @@ async function approveViaTelegram(draft: Draft, token: string, chatId: string): 
       const cb = u.callback_query;
       if (!cb || cb.message.message_id !== messageId) continue;
       await tg(token, 'answerCallbackQuery', { callback_query_id: cb.id });
-      return cb.data === 'approve';
+      if (cb.data === 'approve') return 'approve';
+      if (cb.data === 'new-topic') return 'new-topic';
+      return 'reject';
     }
   }
 
