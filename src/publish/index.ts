@@ -3,6 +3,12 @@ import type { Draft } from '../types.ts';
 
 const LINKEDIN_VERSION = '202506';
 
+// LinkedIn "Little Text" format silently truncates commentary at unescaped
+// special characters. '#' left alone so hashtags stay clickable.
+function escapeCommentary(text: string): string {
+  return text.replace(/[|{}@\[\]()<>\\*_~]/g, '\\$&');
+}
+
 export async function publishPost(draft: Draft): Promise<string> {
   if (!config.LINKEDIN_ACCESS_TOKEN || !config.LINKEDIN_MEMBER_URN) {
     throw new Error('Missing LinkedIn credentials. Run `npm run auth` first.');
@@ -20,7 +26,7 @@ export async function publishPost(draft: Draft): Promise<string> {
       },
       body: JSON.stringify({
         author: config.LINKEDIN_MEMBER_URN,
-        commentary: draft.text,
+        commentary: escapeCommentary(draft.text),
         visibility: 'PUBLIC',
         distribution: {
           feedDistribution: 'MAIN_FEED',
