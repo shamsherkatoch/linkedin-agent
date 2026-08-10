@@ -2,8 +2,8 @@ name: Weekly LinkedIn Post
 
 on:
   schedule:
-    # Every Monday at 10:00 AEST (UTC+10) → 00:00 UTC Monday
-    - cron: '0 0 * * 1'
+    # Every Monday at 19:00 AEST (UTC+10) → 09:00 UTC Monday
+    - cron: '0 9 * * 1'
   workflow_dispatch:
 
 jobs:
