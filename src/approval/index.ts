@@ -25,15 +25,28 @@ async function approveViaCli(draft: Draft): Promise<ApprovalDecision> {
 }
 
 async function tg<T>(token: string, method: string, body: unknown): Promise<T> {
-  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+  const url = `https://api.telegram.org/bot${token}/${method}`;
+  const init = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new Error(`Telegram ${method} failed: ${res.status} ${await res.text()}`);
+  };
+  let lastErr: Error | undefined;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(url, init);
+    } catch (err) {
+      lastErr = new Error(`Telegram ${method} request failed: ${(err as Error).message}`);
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
+      continue;
+    }
+    if (!res.ok) {
+      throw new Error(`Telegram ${method} failed: ${res.status} ${await res.text()}`);
+    }
+    return (await res.json()) as T;
   }
-  return (await res.json()) as T;
+  throw lastErr!;
 }
 
 interface TgSendResponse {
