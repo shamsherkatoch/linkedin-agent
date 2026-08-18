@@ -19,7 +19,7 @@ const TavilyResponse = z.object({
       title: z.string(),
       url: z.string().url(),
       content: z.string(),
-      published_date: z.string().optional(),
+      published_date: z.string().nullish(),
       score: z.number().optional(),
     }),
   ),
