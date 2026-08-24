@@ -1,7 +1,7 @@
 import { config } from '../config.ts';
 import type { Draft } from '../types.ts';
 
-const LINKEDIN_VERSION = '202506';
+const LINKEDIN_VERSION = '202608';
 
 // LinkedIn "Little Text" format silently truncates commentary at unescaped
 // special characters. '#' left alone so hashtags stay clickable.

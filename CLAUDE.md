@@ -25,7 +25,7 @@ via the official LinkedIn REST API.
 ## LinkedIn API rules (do not deviate)
 - Use the versioned REST API: base https://api.linkedin.com/rest
 - Required headers on every call: Authorization: Bearer {token},
-  LinkedIn-Version: 202506, X-Restli-Protocol-Version: 2.0.0
+  LinkedIn-Version: 202608, X-Restli-Protocol-Version: 2.0.0
 - Post body shape: { author: memberUrn, commentary, visibility: "PUBLIC",
   distribution: { feedDistribution: "MAIN_FEED" }, lifecycleState: "PUBLISHED" }
 - On 401, exit with a clear message telling the user to re-run `npm run auth`
